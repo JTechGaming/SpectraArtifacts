@@ -7,20 +7,14 @@
 
     <script>
         async function listDir(path) {
-            // Prevent the GitHub CDN from caching API responses
             const url = `https://api.github.com/repos/JTechGaming/SpectraArtifacts/contents/${path}?t=${Date.now()}`;
-            const res = await fetch(url, {
-                headers: {
-                    "Cache-Control": "no-cache",
-                    "Pragma": "no-cache"
-                }
-            });
-
+        
+            const res = await fetch(url);
             if (!res.ok) {
                 console.error("Failed to fetch:", url);
                 return [];
             }
-
+        
             return await res.json();
         }
 
