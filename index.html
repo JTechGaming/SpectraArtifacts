@@ -1,73 +1,352 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Spectra Artifacts</title>
-
-    <script>
-        async function listDir(path) {
-            const url = `https://api.github.com/repos/JTechGaming/SpectraArtifacts/contents/${path}?t=${Date.now()}`;
-        
-            const res = await fetch(url);
-            if (!res.ok) {
-                console.error("Failed to fetch:", url);
-                return [];
-            }
-        
-            return await res.json();
-        }
-
-        async function loadArtifacts() {
-            const root = document.getElementById("content");
-            if (!root) {
-                console.error("Container #content not found!");
-                return;
-            }
-
-            const groups = await listDir("org");
-
-            for (const group of groups) {
-                if (group.type !== "dir") continue;
-
-                const groupDiv = document.createElement("div");
-                groupDiv.innerHTML = `<h2>${group.name}</h2>`;
-                root.appendChild(groupDiv);
-
-                const packages = await listDir(`org/${group.name}`);
-
-                for (const pkg of packages) {
-                    if (pkg.type !== "dir") continue;
-
-                    const pkgDiv = document.createElement("div");
-                    pkgDiv.style.marginLeft = "20px";
-                    pkgDiv.innerHTML = `<h3>${pkg.name}</h3>`;
-                    root.appendChild(pkgDiv);
-
-                    const versions = await listDir(`org/${group.name}/${pkg.name}`);
-
-                    for (const ver of versions) {
-                        if (ver.type !== "dir") continue;
-
-                        const verDiv = document.createElement("div");
-                        verDiv.style.marginLeft = "40px";
-
-                        const link = document.createElement("a");
-                        link.href = `./org/${group.name}/${pkg.name}/${ver.name}/`;
-                        link.innerText = ver.name;
-
-                        verDiv.appendChild(link);
-                        root.appendChild(verDiv);
-                    }
-                }
-            }
-        }
-
-        document.addEventListener("DOMContentLoaded", loadArtifacts);
-    </script>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Spectra Artifacts — Browser</title>
+<style>
+  :root{
+    --bg:#0f1724; --card:#0b1220; --muted:#9aa4b2; --accent:#6ee7b7; --accent-2:#60a5fa;
+    --glass: rgba(255,255,255,0.03);
+    color-scheme: dark;
+  }
+  html,body{height:100%;margin:0;font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;}
+  body{background:linear-gradient(180deg,#071025 0%, #0b1220 100%); color:#e6eef6; display:flex; flex-direction:column; gap:18px; padding:20px;}
+  header{display:flex;gap:18px;align-items:center;flex-wrap:wrap}
+  h1{margin:0;font-size:1.25rem}
+  .subtitle{color:var(--muted);font-size:0.9rem}
+  .topbar{display:flex; gap:12px; align-items:center; margin-left:auto;}
+  input[type="search"], input[type="text"], select{background:var(--card); border:1px solid rgba(255,255,255,0.03); padding:8px 10px; border-radius:8px; color:inherit; outline:none;}
+  input[type="search"]:focus, input[type="text"]:focus, select:focus{box-shadow:0 0 0 3px rgba(96,165,250,0.08);}
+  button{background:linear-gradient(180deg, rgba(255,255,255,0.03), rgba(255,255,255,0.01)); border:1px solid rgba(255,255,255,0.04); padding:8px 10px; border-radius:8px; color:inherit; cursor:pointer;}
+  button.ghost{background:transparent;border:1px dashed rgba(255,255,255,0.04)}
+  main{display:flex; gap:18px; align-items:flex-start}
+  .sidebar{width:320px; min-width:220px; background:var(--glass); padding:12px; border-radius:12px; border:1px solid rgba(255,255,255,0.02)}
+  .content{flex:1; background:var(--glass); padding:14px; border-radius:12px; border:1px solid rgba(255,255,255,0.02)}
+  .crumbs{font-size:0.9rem;color:var(--muted); margin-bottom:10px}
+  .list{display:block;}
+  .list .entry{display:flex; align-items:center; justify-content:space-between; padding:8px 10px; border-radius:8px; margin-bottom:6px;}
+  .entry.dir{background:linear-gradient(90deg, rgba(96,165,250,0.03), rgba(102,231,179,0.01)); cursor:pointer;}
+  .entry.file{background:transparent;}
+  .entry .left{display:flex;align-items:center;gap:12px}
+  .entry .name{font-weight:600}
+  .entry .meta{color:var(--muted); font-size:0.85rem}
+  .small{font-size:0.85rem;color:var(--muted)}
+  footer{color:var(--muted); font-size:0.85rem; margin-top:8px}
+  .search-row{display:flex; gap:8px; align-items:center; margin-bottom:12px}
+  .flex{display:flex; gap:8px; align-items:center}
+  .muted{color:var(--muted)}
+  .progress{height:10px;background:rgba(255,255,255,0.04);border-radius:999px; overflow:hidden;}
+  .progress > b{display:block;height:100%; background:linear-gradient(90deg,var(--accent),var(--accent-2)); width:0%;}
+  .empty{color:var(--muted); padding:18px; text-align:center}
+  @media (max-width:880px){ .sidebar{display:none} main{flex-direction:column} header{flex-direction:column;align-items:flex-start} }
+</style>
 </head>
 <body>
-    <h1>Spectra Artifacts Repository</h1>
-    <div id="content"></div>
+<header>
+  <div>
+    <h1>Spectra Artifacts</h1>
+    <div class="subtitle">Browse artifacts in the SpectraArtifacts repo (dynamic, no server files required)</div>
+  </div>
+
+  <div class="topbar">
+    <div class="muted">GitHub token (optional):</div>
+    <input id="token" type="text" placeholder="Paste PAT to increase API limit (optional)" style="width:260px" />
+    <button id="applyToken">Apply</button>
+  </div>
+</header>
+
+<main>
+  <aside class="sidebar" aria-label="controls">
+    <div class="small">Navigation</div>
+    <div style="margin:10px 0">
+      <button id="btn-home">Root</button>
+      <button id="btn-searchAll" title="Search entire repo (may use many API requests)">Search entire repo</button>
+      <button id="btn-cancelSearch" style="display:none">Cancel search</button>
+    </div>
+
+    <div style="margin-top:12px">
+      <div class="small">Filters</div>
+      <div style="margin-top:8px" class="flex">
+        <select id="extFilter">
+          <option value="">All extensions</option>
+          <option value=".exe">.exe</option>
+          <option value=".dll">.dll</option>
+          <option value=".zip">.zip</option>
+          <option value=".json">.json</option>
+          <option value=".txt">.txt</option>
+        </select>
+        <input id="repoFilter" placeholder="filter group / package name" />
+      </div>
+    </div>
+
+    <hr style="border:none;height:1px;background:rgba(255,255,255,0.02);margin:12px 0" />
+
+    <div class="small">Progress</div>
+    <div style="margin-top:6px">
+      <div id="progressText" class="muted">Idle</div>
+      <div class="progress" style="margin-top:8px"><b id="progressBar"></b></div>
+    </div>
+
+    <footer>
+      <div style="margin-top:12px">Repo: <strong>JTechGaming/SpectraArtifacts</strong></div>
+      <div class="small" style="margin-top:6px">Tip: Use the "Search entire repo" button if you want to find across all folders (watch API usage).</div>
+    </footer>
+  </aside>
+
+  <section class="content">
+    <div class="crumbs" id="crumbs">/</div>
+
+    <div class="search-row">
+      <input id="search" type="search" placeholder="Filter current view (filename or version)... (enter to focus) " style="flex:1" />
+      <button id="clearSearch" class="ghost">Clear</button>
+    </div>
+
+    <div id="listing" class="list" aria-live="polite"></div>
+    <div id="empty" class="empty" style="display:none">No items found.</div>
+  </section>
+</main>
+
+<script>
+(() => {
+  const OWNER = "JTechGaming";
+  const REPO = "SpectraArtifacts";
+  const API_ROOT = `https://api.github.com/repos/${OWNER}/${REPO}/contents`;
+  let token = "";
+  let cache = new Map(); // path -> entries
+  let currentPath = "org"; // start at org (per your structure)
+  let abortSearch = false;
+
+  /* ---------- DOM helpers ---------- */
+  const el = id => document.getElementById(id);
+  const setProgress = (pct, text)=> {
+    el("progressBar").style.width = `${Math.max(0,Math.min(100,pct))}%`;
+    el("progressText").textContent = text || `${Math.round(pct)}%`;
+  };
+
+  /* ---------- API ---------- */
+  async function apiFetch(path){
+    const qs = `?t=${Date.now()}`;
+    const url = `${API_ROOT}/${encodeURIComponent(path)}${qs}`;
+    const opts = {};
+    if (token) opts.headers = { Authorization: `token ${token}` };
+    const res = await fetch(url, opts);
+    if (res.status === 404) throw new Error("Not found");
+    if (res.status === 403) throw new Error("API rate limit or forbidden (403). Consider adding a token.");
+    if (!res.ok) throw new Error(`API error ${res.status}`);
+    return await res.json();
+  }
+
+  async function listDir(path){
+    path = path || "";
+    if (cache.has(path)) return cache.get(path);
+    const items = await apiFetch(path);
+    // normalize: directories first
+    items.sort((a,b) => {
+      if (a.type === b.type) return a.name.localeCompare(b.name);
+      return (a.type === "dir") ? -1 : 1;
+    });
+    cache.set(path, items);
+    return items;
+  }
+
+  /* ---------- UI rendering ---------- */
+  function renderBreadcrumb(path){
+    const crumbs = el("crumbs");
+    const parts = path ? path.split("/") : [];
+    let out = `<a href="#" data-path="">root</a>`;
+    let built = "";
+    for (const p of parts){
+      if (!p) continue;
+      built = built ? `${built}/${p}` : p;
+      out += ` / <a href="#" data-path="${built}">${p}</a>`;
+    }
+    crumbs.innerHTML = out;
+    // attach click handlers
+    [ ...crumbs.querySelectorAll("a") ].forEach(a=>{
+      a.addEventListener("click", ev=>{
+        ev.preventDefault();
+        const target = a.getAttribute("data-path");
+        navigateTo(target || "");
+      });
+    });
+  }
+
+  function humanSize(bytes){
+    if (bytes == null) return "";
+    const units = ["B","KB","MB","GB"];
+    let i=0;
+    while(bytes>=1024 && i<units.length-1){ bytes/=1024; i++; }
+    return `${bytes.toFixed(i?1:0)} ${units[i]}`;
+  }
+
+  function renderList(path, items){
+    const container = el("listing");
+    container.innerHTML = "";
+    const extFilter = el("extFilter").value.trim().toLowerCase();
+    const repoFilter = (el("repoFilter").value || "").trim().toLowerCase();
+    const q = (el("search").value || "").trim().toLowerCase();
+
+    const visible = items.filter(it=>{
+      // extension filter for files, pass directories always
+      if (extFilter && it.type === "file" && !it.name.toLowerCase().endsWith(extFilter)) return false;
+      // repo/package filter: check path or name
+      if (repoFilter && !(it.path || "").toLowerCase().includes(repoFilter) && !it.name.toLowerCase().includes(repoFilter)) return false;
+      // search query matches name or path
+      if (q){
+        const hay = `${it.name} ${it.path}`.toLowerCase();
+        if (!hay.includes(q)) return false;
+      }
+      return true;
+    });
+
+    if (visible.length === 0) el("empty").style.display = ""; else el("empty").style.display = "none";
+
+    for (const it of visible){
+      const row = document.createElement("div");
+      row.className = "entry " + (it.type === "dir" ? "dir" : "file");
+
+      const left = document.createElement("div"); left.className = "left";
+      const name = document.createElement("div"); name.className = "name";
+      name.textContent = it.name;
+
+      const meta = document.createElement("div"); meta.className = "meta";
+      if (it.type === "dir"){
+        meta.textContent = "folder";
+      } else {
+        meta.textContent = `${humanSize(it.size)} • ${it.name.split(".").pop().toUpperCase()}`;
+      }
+      left.appendChild(name);
+      left.appendChild(meta);
+
+      const right = document.createElement("div");
+      if (it.type === "dir"){
+        const openBtn = document.createElement("button");
+        openBtn.textContent = "Open";
+        openBtn.addEventListener("click", ()=> navigateTo(it.path));
+        right.appendChild(openBtn);
+      } else {
+        const a = document.createElement("a");
+        a.href = it.download_url || `https://raw.githubusercontent.com/${OWNER}/${REPO}/main/${it.path}`;
+        a.target = "_blank";
+        a.rel = "noopener noreferrer";
+        const dBtn = document.createElement("button");
+        dBtn.textContent = "Download";
+        a.appendChild(dBtn);
+        right.appendChild(a);
+      }
+
+      row.appendChild(left);
+      row.appendChild(right);
+      container.appendChild(row);
+    }
+  }
+
+  /* ---------- navigation ---------- */
+  async function navigateTo(path){
+    try {
+      el("search").value = ""; // clear per view
+      currentPath = path || "org"; // default to org
+      renderBreadcrumb(currentPath);
+      setProgress(0, "Loading...");
+      const items = await listDir(currentPath);
+      renderList(currentPath, items);
+      setProgress(100, "Done");
+    } catch (err) {
+      setProgress(0, "Error");
+      el("listing").innerHTML = `<div class="empty">Failed to load: ${err.message}</div>`;
+      console.error(err);
+    }
+  }
+
+  /* ---------- recursive search (entire repo) ---------- */
+  async function crawlAll(root=""){
+    abortSearch = false;
+    const found = [];
+    const queue = [root];
+    let processed = 0;
+    let totalRequests = 0;
+
+    while(queue.length && !abortSearch){
+      const path = queue.shift();
+      try {
+        const items = await apiFetch(path); totalRequests++;
+        // update progress estimate (best-effort)
+        processed++;
+        setProgress((processed % 100), `Crawled ${processed} folders — requests: ${totalRequests}`);
+        for (const it of items){
+          if (it.type === "dir") queue.push(it.path);
+          else found.push(it);
+        }
+        // small throttle to avoid hammering
+        await new Promise(r => setTimeout(r, 120));
+      } catch(e){
+        console.warn("crawl error", e);
+      }
+    }
+    return found;
+  }
+
+  /* ---------- search UI handlers ---------- */
+  el("search").addEventListener("input", ()=> {
+    // acts as live filter for currently-loaded items
+    const path = currentPath || "org";
+    const items = cache.get(path) || [];
+    renderList(path, items);
+  });
+
+  el("clearSearch").addEventListener("click", ()=> { el("search").value=""; el("search").dispatchEvent(new Event("input")); });
+
+  el("extFilter").addEventListener("change", ()=> {
+    const items = cache.get(currentPath) || [];
+    renderList(currentPath, items);
+  });
+  el("repoFilter").addEventListener("input", ()=> {
+    const items = cache.get(currentPath) || [];
+    renderList(currentPath, items);
+  });
+
+  el("btn-home").addEventListener("click", ()=> navigateTo("org"));
+  el("btn-searchAll").addEventListener("click", async ()=>{
+    if (!confirm("Search entire repo? This may use many GitHub API requests and could hit rate limits. Continue?")) return;
+    el("btn-searchAll").style.display = "none";
+    el("btn-cancelSearch").style.display = "";
+    setProgress(0, "Starting full repo search...");
+    try {
+      const files = await crawlAll(""); // from root
+      // render results (as if in a folder)
+      cache.set("__search_all__", files.sort((a,b)=> a.name.localeCompare(b.name)));
+      currentPath = "__search_all__";
+      renderBreadcrumb("__search_all__");
+      renderList("__search_all__", files);
+      setProgress(100, `Search done — ${files.length} files`);
+    } catch(e){
+      console.error(e);
+      el("listing").innerHTML = `<div class="empty">Search failed: ${e.message}</div>`;
+      setProgress(0, "Failed");
+    } finally {
+      el("btn-searchAll").style.display = "";
+      el("btn-cancelSearch").style.display = "none";
+    }
+  });
+
+  el("btn-cancelSearch").addEventListener("click", ()=> { abortSearch = true; el("btn-cancelSearch").style.display = "none"; el("btn-searchAll").style.display = ""; setProgress(0,"Cancelled"); });
+
+  // token apply
+  el("applyToken").addEventListener("click", ()=> {
+    token = el("token").value.trim();
+    cache.clear();
+    navigateTo("org");
+    alert(token ? "Token applied. API quota increased for this session." : "Cleared token.");
+  });
+
+  // initial load
+  document.addEventListener("DOMContentLoaded", ()=> {
+    // default to org — if it doesn't exist, the API call will surface an error
+    navigateTo("org");
+  });
+
+})();
+</script>
 </body>
 </html>
