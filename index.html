@@ -2,16 +2,35 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Spectra Artifacts</title>
+
     <script>
         async function listDir(path) {
-            const url = `https://api.github.com/repos/JTechGaming/SpectraArtifacts/contents/${path}`;
-            const res = await fetch(url);
+            // Prevent the GitHub CDN from caching API responses
+            const url = `https://api.github.com/repos/JTechGaming/SpectraArtifacts/contents/${path}?t=${Date.now()}`;
+            const res = await fetch(url, {
+                headers: {
+                    "Cache-Control": "no-cache",
+                    "Pragma": "no-cache"
+                }
+            });
+
+            if (!res.ok) {
+                console.error("Failed to fetch:", url);
+                return [];
+            }
+
             return await res.json();
         }
 
         async function loadArtifacts() {
             const root = document.getElementById("content");
+            if (!root) {
+                console.error("Container #content not found!");
+                return;
+            }
+
             const groups = await listDir("org");
 
             for (const group of groups) {
@@ -36,12 +55,13 @@
                     for (const ver of versions) {
                         if (ver.type !== "dir") continue;
 
+                        const verDiv = document.createElement("div");
+                        verDiv.style.marginLeft = "40px";
+
                         const link = document.createElement("a");
                         link.href = `./org/${group.name}/${pkg.name}/${ver.name}/`;
                         link.innerText = ver.name;
 
-                        const verDiv = document.createElement("div");
-                        verDiv.style.marginLeft = "40px";
                         verDiv.appendChild(link);
                         root.appendChild(verDiv);
                     }
@@ -49,7 +69,7 @@
             }
         }
 
-        loadArtifacts();
+        document.addEventListener("DOMContentLoaded", loadArtifacts);
     </script>
 </head>
 <body>
