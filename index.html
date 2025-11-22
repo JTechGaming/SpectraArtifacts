@@ -46,12 +46,12 @@
 <header>
   <div>
     <h1>Spectra Artifacts</h1>
-    <div class="subtitle">Browse artifacts in the SpectraArtifacts repo (dynamic, no server files required)</div>
+    <div class="subtitle">Browse spectra artifacts</div>
   </div>
 
   <div class="topbar">
-    <div class="muted">GitHub token (optional):</div>
-    <input id="token" type="text" placeholder="Paste PAT to increase API limit (optional)" style="width:260px" />
+    <div class="muted">GitHub token:</div>
+    <input id="token" type="text" placeholder="Paste PAT to increase API limit" style="width:260px" />
     <button id="applyToken">Apply</button>
   </div>
 </header>
@@ -61,8 +61,6 @@
     <div class="small">Navigation</div>
     <div style="margin:10px 0">
       <button id="btn-home">Root</button>
-      <button id="btn-searchAll" title="Search entire repo (may use many API requests)">Search entire repo</button>
-      <button id="btn-cancelSearch" style="display:none">Cancel search</button>
     </div>
 
     <div style="margin-top:12px">
@@ -82,15 +80,13 @@
 
     <hr style="border:none;height:1px;background:rgba(255,255,255,0.02);margin:12px 0" />
 
-    <div class="small">Progress</div>
-    <div style="margin-top:6px">
+    <div id="progressDiv" style="margin-top:6px">
       <div id="progressText" class="muted">Idle</div>
       <div class="progress" style="margin-top:8px"><b id="progressBar"></b></div>
     </div>
 
     <footer>
       <div style="margin-top:12px">Repo: <strong>JTechGaming/SpectraArtifacts</strong></div>
-      <div class="small" style="margin-top:6px">Tip: Use the "Search entire repo" button if you want to find across all folders (watch API usage).</div>
     </footer>
   </aside>
 
@@ -114,7 +110,7 @@
   const API_ROOT = `https://api.github.com/repos/${OWNER}/${REPO}/contents`;
   let token = "";
   let cache = new Map(); // path -> entries
-  let currentPath = "org"; // start at org (per your structure)
+  let currentPath = "org";
   let abortSearch = false;
 
   /* ---------- DOM helpers ---------- */
@@ -221,10 +217,7 @@
 
       const right = document.createElement("div");
       if (it.type === "dir"){
-        const openBtn = document.createElement("button");
-        openBtn.textContent = "Open";
-        openBtn.addEventListener("click", ()=> navigateTo(it.path));
-        right.appendChild(openBtn);
+        row.addEventListener("click", ()=> navigateTo(it.path));
       } else {
         const a = document.createElement("a");
         a.href = it.download_url || `https://raw.githubusercontent.com/${OWNER}/${REPO}/main/${it.path}`;
@@ -252,6 +245,10 @@
       const items = await listDir(currentPath);
       renderList(currentPath, items);
       setProgress(100, "Done");
+      setTimeout(()=> {
+        el("progressBar").remove();
+        el("progressDiv").remove();
+      }, 200);
     } catch (err) {
       setProgress(0, "Error");
       el("listing").innerHTML = `<div class="empty">Failed to load: ${err.message}</div>`;
@@ -271,7 +268,6 @@
       const path = queue.shift();
       try {
         const items = await apiFetch(path); totalRequests++;
-        // update progress estimate (best-effort)
         processed++;
         setProgress((processed % 100), `Crawled ${processed} folders — requests: ${totalRequests}`);
         for (const it of items){
@@ -307,30 +303,6 @@
   });
 
   el("btn-home").addEventListener("click", ()=> navigateTo("org"));
-  el("btn-searchAll").addEventListener("click", async ()=>{
-    if (!confirm("Search entire repo? This may use many GitHub API requests and could hit rate limits. Continue?")) return;
-    el("btn-searchAll").style.display = "none";
-    el("btn-cancelSearch").style.display = "";
-    setProgress(0, "Starting full repo search...");
-    try {
-      const files = await crawlAll(""); // from root
-      // render results (as if in a folder)
-      cache.set("__search_all__", files.sort((a,b)=> a.name.localeCompare(b.name)));
-      currentPath = "__search_all__";
-      renderBreadcrumb("__search_all__");
-      renderList("__search_all__", files);
-      setProgress(100, `Search done — ${files.length} files`);
-    } catch(e){
-      console.error(e);
-      el("listing").innerHTML = `<div class="empty">Search failed: ${e.message}</div>`;
-      setProgress(0, "Failed");
-    } finally {
-      el("btn-searchAll").style.display = "";
-      el("btn-cancelSearch").style.display = "none";
-    }
-  });
-
-  el("btn-cancelSearch").addEventListener("click", ()=> { abortSearch = true; el("btn-cancelSearch").style.display = "none"; el("btn-searchAll").style.display = ""; setProgress(0,"Cancelled"); });
 
   // token apply
   el("applyToken").addEventListener("click", ()=> {
