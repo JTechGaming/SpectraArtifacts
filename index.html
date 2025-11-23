@@ -116,14 +116,18 @@
   /* ---------- DOM helpers ---------- */
   const el = id => document.getElementById(id);
   const setProgress = (pct, text)=> {
-    el("progressBar").style.width = `${Math.max(0,Math.min(100,pct))}%`;
-    el("progressText").textContent = text || `${Math.round(pct)}%`;
+    const bar = el("progressBar");
+    const txt = el("progressText");
+    if (bar) bar.style.width = `${Math.max(0,Math.min(100,pct))}%`;
+    if (txt) txt.textContent = text || `${Math.round(pct)}%`;
   };
 
   /* ---------- API ---------- */
   async function apiFetch(path){
     const qs = `?t=${Date.now()}`;
-    const url = `${API_ROOT}/${encodeURIComponent(path)}${qs}`;
+    // Encode path segments individually, not the slashes
+    const encodedPath = path.split('/').map(encodeURIComponent).join('/');
+    const url = `${API_ROOT}/${encodedPath}${qs}`;
     const opts = {};
     if (token) opts.headers = { Authorization: `token ${token}` };
     const res = await fetch(url, opts);
@@ -239,16 +243,12 @@
   async function navigateTo(path){
     try {
       el("search").value = ""; // clear per view
-      currentPath = path || "org"; // default to org
+      currentPath = path !== undefined && path !== null ? path : "org"; // default to org
       renderBreadcrumb(currentPath);
       setProgress(0, "Loading...");
       const items = await listDir(currentPath);
       renderList(currentPath, items);
       setProgress(100, "Done");
-      setTimeout(()=> {
-        el("progressBar").remove();
-        el("progressDiv").remove();
-      }, 200);
     } catch (err) {
       setProgress(0, "Error");
       el("listing").innerHTML = `<div class="empty">Failed to load: ${err.message}</div>`;
